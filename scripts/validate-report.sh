@@ -12,6 +12,14 @@
 #
 # --diagnose requires the text "no failed requests". A healthy diagnosis
 # also prints "failure rate:", and this script does not search for that word.
+#
+# The HTML report is out/<id>.html, next to the JSON summary, unless
+# --no-report is set. The runner must pass -report out/<id>.html.
+# VegaLoad's default name is vegaload-report-<timestamp>.html.
+#
+# The JSON summary has no thresholds or thresholds_passed field. A failed
+# threshold makes vegaload exit non-zero, and --exit 0 is required, so
+# that failure is caught by the exit code.
 set -eu
 
 usage() {
@@ -149,14 +157,6 @@ else:
             errors.append("%s: checks are empty" % ident)
         elif fails != 0:
             errors.append("%s: checks failed %s of %s" % (ident, fails, passes + fails))
-
-if data.get("thresholds_passed") is False:
-    errors.append("%s: a threshold failed" % ident)
-for item in data.get("thresholds") or []:
-    if isinstance(item, dict) and item.get("passed") is False:
-        name = item.get("name") or item.get("metric") or "threshold"
-        errors.append("%s: threshold %s failed" % (ident, name))
-        break
 
 for line in errors:
     print(line)

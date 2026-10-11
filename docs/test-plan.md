@@ -72,7 +72,7 @@ Running it again updates the lab. It does not delete data it does not own.
 1. Read `targets.env`.
 2. Install the VegaLoad binary for `vegaload_ref`.
 3. Run the cases in `cases/`. Areas run in parallel. Cases inside one area run one after another, so two cases do not share a queue, topic, or table by accident.
-4. Each case writes `out/<id>.json` and, when it asked for one, `out/<id>.html` and `out/<id>.junit.xml`. Every flag, including `-out`, comes before the scenario file. A flag after the file is ignored, and the JSON summary is never written.
+4. Each case writes `out/<id>.json`, `out/<id>.html` unless it passes `-no-report`, and `out/<id>.junit.xml` when it asked for JUnit. The runner adds `-out out/<id>.json` and, for a case that makes an HTML report, `-report out/<id>.html`. VegaLoad's default HTML name is `vegaload-report-<timestamp>.html`, and `scripts/validate-report.sh` looks for `out/<id>.html`. Every flag, including `-out` and `-report`, comes before the scenario file. A flag after the file is ignored, and the JSON summary is never written.
 
 A case file is a small YAML document:
 
@@ -94,6 +94,8 @@ argv:
   - -no-open
   - -out
   - out/HP-HTTP-01.json
+  - -report
+  - out/HP-HTTP-01.html
 expect:
   exit: 0
   total_min: 1
@@ -121,7 +123,7 @@ This is the last stage of the same pipeline.
 
 P0 cases gate the release. P1 cases are the second language and the extra shapes. They run in the same pipeline. A P1 failure does not block the release tag, and it is written down in the release notes. A P0 failure blocks the tag.
 
-Commands below omit `-yes`, `-no-open`, and `-out out/<id>.json`. The runner adds them. `${...}` comes from `targets.env`.
+Commands below omit `-yes`, `-no-open`, `-out out/<id>.json`, and `-report out/<id>.html`. The runner adds them. A case that passes `-no-report` does not get `-report`. VegaLoad's default HTML name is `vegaload-report-<timestamp>.html`, and the validator looks for `out/<id>.html`. `${...}` comes from `targets.env`.
 
 ### CLI
 

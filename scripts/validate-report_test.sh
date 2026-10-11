@@ -75,9 +75,6 @@ d["failed"] = 0
 d["error_rate"] = 0
 d.pop("checks", None)
 json.dump(d, open("/tmp/vl-validate-nochecks.json", "w"))
-d["thresholds_passed"] = False
-d["thresholds"] = [{"name": "errors", "metric": "error_rate", "operator": "<", "value": "1%", "observed": "2%", "passed": False}]
-json.dump(d, open("/tmp/vl-validate-threshold.json", "w"))
 PY
 
 expect_bad checks "checks failed 1 of 2" \
@@ -89,8 +86,9 @@ expect_ok no-checks-skipped \
 expect_bad require-checks "has no checks" \
 	--id HP-SCN-01 --json /tmp/vl-validate-nochecks.json --exit 0 --no-report --require-checks
 
-expect_bad threshold "threshold errors failed" \
-	--id HP-THR-01 --json /tmp/vl-validate-threshold.json --exit 0 --no-report
+# A failed threshold is a non-zero exit. The summary has no threshold fields.
+expect_bad threshold "exit code is 3" \
+	--id HP-THR-01 --json scripts/testdata/healthy.json --exit 3 --no-report
 
 expect_bad html "HTML report is missing" \
 	--id HP-HTTP-01 --json scripts/testdata/healthy.json --exit 0
