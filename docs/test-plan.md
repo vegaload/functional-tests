@@ -49,7 +49,7 @@ The VegaLoad step uses the Helm chart in the product repo (`charts/vegaload`) or
 
 gRPC `Health/Check` with an empty body works on today's sample-app as a protocol-direct call. `grpc.call` in a scenario sends JSON and needs server reflection, which sample-app does not offer yet. Before the script case is turned on, the lab image of sample-app enables reflection. Until that image is built, the gRPC gate is the protocol-direct health call.
 
-RabbitMQ is part of this plan when the driver is in the pinned release commit.
+RabbitMQ is in the pinned release. It shipped in VegaLoad v0.7.0. HP-RMQ-01 sets `username` because the broker rejects `guest` from a remote host.
 
 ## 3. Pipelines
 
@@ -106,8 +106,8 @@ The runner substitutes service hostnames from `targets.env`. It does not invent 
 
 This is the last stage of the same pipeline.
 
-1. For each `out/<id>.json`, check the pass rules in section 1 against that case's `expect` block.
-2. Fail the stage on the first missing file, a non-zero exit, or a broken rule. The log names the case id.
+1. For each case, run `scripts/validate-report.sh` on `out/<id>.json` and that case's exit code.
+2. Fail the stage when the script reports a broken rule. The log names the case id. A non-zero exit is one rule. Exit 0 with `failed` greater than 0 is another.
 3. Upload `out/` to a GCS bucket, one prefix per `vegaload_ref` and pipeline execution.
 4. Publish the JUnit files so the Harness execution shows one test per case.
 
@@ -149,7 +149,7 @@ Target is `GET ${SAMPLE_HTTP}/health` unless the row says otherwise. Protocol `h
 |---|---|---|---|---|
 | HP-WS-01 | P0 | Send one message and read the echo | `-protocol websocket -target ${SAMPLE_WS}/ws/echo -body hello -vus 5 -duration 10s` | Section 1 |
 | HP-GRPC-01 | P0 | A health check, empty protobuf body | `-protocol grpc -target ${SAMPLE_GRPC} -method /grpc.health.v1.Health/Check -vus 5 -duration 10s` | Section 1 |
-| HP-GRPC-02 | P1 | The same health check from a scenario, JSON in and out | `grpc.call` against a lab image that has reflection on | `check_rate` is 1 |
+| HP-GRPC-02 | P1 | The same health check from a scenario, JSON in and out | `grpc.call` against a lab image that has reflection on | Section 1, every check passed |
 
 HP-WS-01 sends a body. The suite does not run a handshake-only WebSocket flood. Those exhaust local ports and make the next case fail for a reason that is outside VegaLoad.
 
@@ -262,3 +262,13 @@ scripts/validate-report.sh check section 1 against out/<id>.json
 ```
 
 `scripts/run-case.sh` and `scripts/validate-report.sh` are the only runners. The pipeline calls them. A person can call them the same way on a laptop pointed at a port-forward, which is how a case is debugged when the pipeline goes red.
+
+`scripts/validate-report.sh` applies section 1 to one case:
+
+```
+scripts/validate-report.sh --id HP-HTTP-01 --json out/HP-HTTP-01.json --exit 0
+scripts/validate-report.sh --id HP-DIAG-01 --diagnose out/HP-DIAG-01.txt --exit 0 --no-report
+scripts/validate-report.sh --id HP-PG-01 --json out/HP-PG-01.json --exit 0 --secret "$PGPASSWORD"
+```
+
+`--exit 0` is required and is not a pass by itself. The JSON summary must have `total` at least `--total-min` (default 1), `failed` 0, and `error_rate` 0. There is no `check_rate` field. When `checks` is present, the script adds `passes` and `fails` and requires that ratio to be 1. `--require-checks` fails a summary that has no checks. `--secret` is grepped as a fixed string in the JSON summary, the HTML report, and `--log` when that log is passed. The HTML report must exist unless `--no-report` is set. `--diagnose` requires the text `no failed requests`. A healthy diagnosis still prints `failure rate:`, and the script does not search for the word `failure`.
