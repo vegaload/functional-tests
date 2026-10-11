@@ -1,0 +1,26 @@
+{
+  "executor": "fixed-vus",
+  "started_at": "2026-10-11T22:17:56.543477+05:30",
+  "elapsed_ns": 1000019917,
+  "total": 19506,
+  "failed": 19506,
+  "error_rate": 1,
+  "latency": {
+    "min_ns": 28042,
+    "mean_ns": 51044,
+    "max_ns": 16132875,
+    "p50_ns": 43375,
+    "p90_ns": 62750,
+    "p95_ns": 84709,
+    "p99_ns": 170084
+  },
+  "time_series": [
+    {
+      "offset_ns": 0,
+      "requests": 19506,
+      "failed": 19506,
+      "rps": 19506,
+      "error_rate": 1
+    }
+  ]
+}

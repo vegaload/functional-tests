@@ -1,0 +1,7 @@
+report:          /tmp/vl070/work/good.json
+failure rate:    0.0%
+worst second:    +0s, 0.0% errors (spread across the run)
+notes:
+  - no failed requests
+suggested thresholds: p95 <= 10ms, error rate <= 1.0%
+gate a run on them:   vegaload run ... -threshold "p95 <= 10ms" -threshold "error_rate <= 0.01"
