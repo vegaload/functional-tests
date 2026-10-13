@@ -1,0 +1,11 @@
+id: HP-PROTO-01
+area: protocols
+priority: P0
+doc: "The list of protocols as JSON"
+argv:
+  - protocols
+  - -output
+  - json
+expect:
+  exit: 0
+  protocols_json: true

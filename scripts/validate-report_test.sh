@@ -96,5 +96,29 @@ expect_bad html "HTML report is missing" \
 expect_bad total "total 5636 is below 10000" \
 	--id HP-SHAPE-03 --json scripts/testdata/healthy.json --exit 0 --no-report --total-min 10000
 
+expect_ok protocol \
+	--id HP-FTP-01 --json scripts/testdata/ftp-summary.json --exit 0 --no-report \
+	--require-protocol ftp
+
+expect_bad protocol-missing "protocols has no ftp" \
+	--id HP-FTP-01 --json scripts/testdata/no-ftp.json --exit 0 --no-report \
+	--require-protocol ftp
+
+expect_ok measure \
+	--id HP-FTP-01 --json scripts/testdata/ftp-summary.json --exit 0 --no-report \
+	--require-measure upload_time --require-measure download_time --require-measure delete_time
+
+expect_bad measure-missing "measures has no upload_time" \
+	--id HP-FTP-01 --json scripts/testdata/no-upload-time.json --exit 0 --no-report \
+	--require-measure upload_time
+
+expect_ok data-file \
+	--id HP-DATA-02 --json scripts/testdata/ftp-summary.json --exit 0 --no-report \
+	--require-data-file ids.csv:5
+
+expect_bad data-file-rows "ids.csv has 4 rows, want 5" \
+	--id HP-DATA-02 --json scripts/testdata/bad-data-file.json --exit 0 --no-report \
+	--require-data-file ids.csv:5
+
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

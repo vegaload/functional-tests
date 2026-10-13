@@ -23,7 +23,7 @@
 set -eu
 
 usage() {
-	echo "Usage: validate-report.sh --id ID (--json FILE | --diagnose FILE) --exit N [--html FILE] [--log FILE] [--secret VALUE] [--no-report] [--total-min N] [--require-checks]" >&2
+	echo "Usage: validate-report.sh --id ID (--json FILE | --diagnose FILE) --exit N [--html FILE] [--log FILE] [--secret VALUE] [--no-report] [--total-min N] [--require-checks] [--require-protocol NAME] [--require-measure NAME] [--require-data-file NAME:ROWS]" >&2
 	exit 2
 }
 
@@ -38,7 +38,10 @@ total_min=1
 require_checks=0
 secrets=$(mktemp)
 outfiles=$(mktemp)
-trap 'rm -f "$secrets" "$outfiles"' EXIT INT TERM
+protocols=$(mktemp)
+measures=$(mktemp)
+data_files=$(mktemp)
+trap 'rm -f "$secrets" "$outfiles" "$protocols" "$measures" "$data_files"' EXIT INT TERM
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -63,6 +66,15 @@ while [ $# -gt 0 ]; do
 		total_min=${2:?}; shift 2 ;;
 	--require-checks)
 		require_checks=1; shift ;;
+	--require-protocol)
+		printf '%s\n' "${2:?}" >> "$protocols"
+		shift 2 ;;
+	--require-measure)
+		printf '%s\n' "${2:?}" >> "$measures"
+		shift 2 ;;
+	--require-data-file)
+		printf '%s\n' "${2:?}" >> "$data_files"
+		shift 2 ;;
 	-h|--help)
 		usage ;;
 	*)
@@ -99,9 +111,10 @@ if [ -n "$json" ]; then
 	if [ ! -f "$json" ]; then
 		say "JSON summary is missing ($json)"
 	else
-		python3 - "$json" "$total_min" "$require_checks" "$id" <<'PY' || fail=1
+		python3 - "$json" "$total_min" "$require_checks" "$id" "$protocols" "$measures" "$data_files" <<'PY' || fail=1
 import json, sys
 path, total_min, require, ident = sys.argv[1], int(sys.argv[2]), sys.argv[3] == "1", sys.argv[4]
+protocols_path, measures_path, data_files_path = sys.argv[5], sys.argv[6], sys.argv[7]
 errors = []
 try:
     with open(path, encoding="utf-8") as fh:
@@ -157,6 +170,75 @@ else:
             errors.append("%s: checks are empty" % ident)
         elif fails != 0:
             errors.append("%s: checks failed %s of %s" % (ident, fails, passes + fails))
+
+def read_lines(path):
+    with open(path, encoding="utf-8") as fh:
+        return [line.strip() for line in fh if line.strip()]
+
+want_protocols = read_lines(protocols_path)
+want_measures = read_lines(measures_path)
+want_files = read_lines(data_files_path)
+
+def protocol_entries():
+    value = data.get("protocols")
+    if not isinstance(value, list):
+        return None
+    return value
+
+if want_protocols or want_measures:
+    plist = protocol_entries()
+    if plist is None:
+        errors.append("%s: JSON summary has no protocols" % ident)
+        plist = []
+    by_name = {}
+    found_measures = {}
+    for item in plist:
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            continue
+        by_name[item["name"]] = item
+        for measure in item.get("measures") or []:
+            if isinstance(measure, dict) and isinstance(measure.get("name"), str):
+                found_measures[measure["name"]] = measure.get("count")
+    for name in want_protocols:
+        item = by_name.get(name)
+        if item is None:
+            errors.append("%s: protocols has no %s" % (ident, name))
+            continue
+        total_p = item.get("total")
+        if not as_int(total_p) or total_p <= 0:
+            errors.append("%s: %s total is %s" % (ident, name, total_p))
+    for name in want_measures:
+        if name not in found_measures:
+            errors.append("%s: measures has no %s" % (ident, name))
+            continue
+        count = found_measures[name]
+        if not as_int(count) or count <= 0:
+            errors.append("%s: %s count is %s" % (ident, name, count))
+
+for spec in want_files:
+    if spec.count(":") != 1:
+        errors.append("%s: data file requirement is not NAME:ROWS" % ident)
+        continue
+    name, rows_s = spec.split(":", 1)
+    if not name or not rows_s.isdigit():
+        errors.append("%s: data file requirement is not NAME:ROWS" % ident)
+        continue
+    want_rows = int(rows_s)
+    files = data.get("data_files")
+    if not isinstance(files, list):
+        errors.append("%s: JSON summary has no data_files" % ident)
+        continue
+    match = None
+    for item in files:
+        if isinstance(item, dict) and item.get("name") == name:
+            match = item
+            break
+    if match is None:
+        errors.append("%s: data_files has no %s" % (ident, name))
+        continue
+    got = match.get("rows")
+    if not as_int(got) or got != want_rows:
+        errors.append("%s: %s has %s rows, want %s" % (ident, name, got, want_rows))
 
 for line in errors:
     print(line)

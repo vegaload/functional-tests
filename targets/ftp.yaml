@@ -1,0 +1,133 @@
+# lab-up creates Secret ftp with keys username and password.
+# The password is FTP_PASSWORD in Secret Manager. It is not stored here.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ftp
+  labels:
+    app: ftp
+spec:
+  selector:
+    app: ftp
+  ports:
+    - name: ftp
+      port: 21
+      targetPort: 21
+    - name: pasv-21100
+      port: 21100
+      targetPort: 21100
+    - name: pasv-21101
+      port: 21101
+      targetPort: 21101
+    - name: pasv-21102
+      port: 21102
+      targetPort: 21102
+    - name: pasv-21103
+      port: 21103
+      targetPort: 21103
+    - name: pasv-21104
+      port: 21104
+      targetPort: 21104
+    - name: pasv-21105
+      port: 21105
+      targetPort: 21105
+    - name: pasv-21106
+      port: 21106
+      targetPort: 21106
+    - name: pasv-21107
+      port: 21107
+      targetPort: 21107
+    - name: pasv-21108
+      port: 21108
+      targetPort: 21108
+    - name: pasv-21109
+      port: 21109
+      targetPort: 21109
+    - name: pasv-21110
+      port: 21110
+      targetPort: 21110
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ftp
+  labels:
+    app: ftp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ftp
+  template:
+    metadata:
+      labels:
+        app: ftp
+    spec:
+      containers:
+        - name: ftp
+          image: fauria/vsftpd
+          ports:
+            - name: ftp
+              containerPort: 21
+            - name: pasv-21100
+              containerPort: 21100
+            - name: pasv-21101
+              containerPort: 21101
+            - name: pasv-21102
+              containerPort: 21102
+            - name: pasv-21103
+              containerPort: 21103
+            - name: pasv-21104
+              containerPort: 21104
+            - name: pasv-21105
+              containerPort: 21105
+            - name: pasv-21106
+              containerPort: 21106
+            - name: pasv-21107
+              containerPort: 21107
+            - name: pasv-21108
+              containerPort: 21108
+            - name: pasv-21109
+              containerPort: 21109
+            - name: pasv-21110
+              containerPort: 21110
+          env:
+            - name: FTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ftp
+                  key: username
+            - name: FTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ftp
+                  key: password
+          volumeMounts:
+            - name: data
+              mountPath: /home/vsftpd
+          readinessProbe:
+            tcpSocket:
+              port: 21
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          # pasv_address is not set. The server announces the pod address.
+          # The user is chrooted, so /vegaload_lab_rt-{id}.bin is inside the home directory.
+          command: ["bash", "-c"]
+          args:
+            - |
+              set -eu
+              mkdir -p "/home/vsftpd/${FTP_USER}"
+              chown -R ftp:ftp /home/vsftpd/
+              printf '%s\n%s\n' "$FTP_USER" "$FTP_PASSWORD" > /etc/vsftpd/virtual_users.txt
+              /usr/bin/db_load -T -t hash -f /etc/vsftpd/virtual_users.txt /etc/vsftpd/virtual_users.db
+              cat >> /etc/vsftpd/vsftpd.conf <<'EOF'
+              pasv_enable=YES
+              pasv_min_port=21100
+              pasv_max_port=21110
+              pasv_promiscuous=NO
+              port_promiscuous=NO
+              EOF
+              exec /usr/sbin/vsftpd /etc/vsftpd/vsftpd.conf
+      volumes:
+        - name: data
+          emptyDir: {}

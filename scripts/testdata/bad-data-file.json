@@ -1,0 +1,6 @@
+{
+  "total": 10,
+  "failed": 0,
+  "error_rate": 0,
+  "data_files": [{"name": "ids.csv", "rows": 4}]
+}

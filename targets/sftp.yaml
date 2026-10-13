@@ -1,0 +1,96 @@
+# lab-up creates Secret sftp with keys username and password.
+# The password is SFTP_PASSWORD in Secret Manager. It is not stored here.
+# lab-up also creates Secret sftp-host-key with ssh_host_ed25519_key and
+# ssh_host_ed25519_key.pub, and writes the SHA256 fingerprint to targets.env
+# as SFTP_HOST_KEY.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sftp
+  labels:
+    app: sftp
+spec:
+  selector:
+    app: sftp
+  ports:
+    - name: sftp
+      port: 22
+      targetPort: 22
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sftp
+  labels:
+    app: sftp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sftp
+  template:
+    metadata:
+      labels:
+        app: sftp
+    spec:
+      containers:
+        - name: sftp
+          image: alpine:3.21
+          ports:
+            - name: sftp
+              containerPort: 22
+          env:
+            - name: SFTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: sftp
+                  key: username
+            - name: SFTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sftp
+                  key: password
+          volumeMounts:
+            - name: home
+              mountPath: /home/sftp
+            - name: host-key
+              mountPath: /hostkeys
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 22
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          # The user is not chrooted. The home directory is the emptyDir.
+          # A path in a case is relative to that home.
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              apk add --no-cache openssh
+              mkdir -p /run/ssh
+              cp /hostkeys/ssh_host_ed25519_key /run/ssh/ssh_host_ed25519_key
+              chmod 600 /run/ssh/ssh_host_ed25519_key
+              adduser -D -h /home/sftp -s /bin/sh "$SFTP_USER"
+              echo "$SFTP_USER:$SFTP_PASSWORD" | chpasswd
+              chown "$SFTP_USER:$SFTP_USER" /home/sftp
+              printf '%s\n' \
+                'Port 22' \
+                'PasswordAuthentication yes' \
+                'KbdInteractiveAuthentication no' \
+                'PermitRootLogin no' \
+                'UseDNS no' \
+                'HostKey /run/ssh/ssh_host_ed25519_key' \
+                'Subsystem sftp internal-sftp' \
+                > /etc/ssh/sshd_config
+              exec /usr/sbin/sshd -D -e
+      volumes:
+        - name: home
+          emptyDir: {}
+        - name: host-key
+          secret:
+            secretName: sftp-host-key
+            defaultMode: 0600
+            items:
+              - key: ssh_host_ed25519_key
+                path: ssh_host_ed25519_key

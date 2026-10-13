@@ -44,6 +44,8 @@ The VegaLoad step uses the Helm chart in the product repo (`charts/vegaload`) or
 | redis | Redis 7 | `redis:6379` | Redis |
 | rabbitmq | RabbitMQ 4. User from Secret Manager. vhost `/` | `rabbitmq:5672` | RabbitMQ |
 | echo | TCP echo on 7000 and UDP echo on 7001 | `echo:7000`, `echo:7001` | TCP, UDP |
+| ftp | vsftpd, one local user, password from Secret Manager. Passive ports 21100 to 21110. `pasv_address` is not set, so the server announces the pod address | `ftp:21` | FTP |
+| sftp | OpenSSH, one user, password login, SFTP subsystem. The user is not chrooted. The host key is a Secret. `lab-up` writes its SHA256 fingerprint to `SFTP_HOST_KEY` | `sftp:22` | SFTP |
 
 `GET /health` and `GET /widgets` on sample-app return success with no injected errors. `POST /widgets` and gRPC `CreateWidget` inject failures on purpose. Happy-path cases call the read endpoints. The fault-injection endpoints stay out of this suite so a green run means VegaLoad worked.
 
@@ -132,6 +134,13 @@ Commands below omit `-yes`, `-no-open`, `-out out/<id>.json`, and `-report out/<
 | HP-CLI-01 | P0 | The binary name and version | `vegaload version` | Exit 0, stdout starts with `vegaload ` |
 | HP-CLI-02 | P0 | The command list | `vegaload help` | Exit 0, stdout contains `run`, `validate`, `new`, `diagnose`, `compare`, `doctor`, `import`, `mcp` |
 
+### Protocol list
+
+| ID | P | What a reader sees | Command | Pass |
+|---|---|---|---|---|
+| HP-PROTO-01 | P0 | The list of protocols as JSON | `vegaload protocols -output json` | Exit 0. stdout is one JSON object. `schema_version` is 1. `protocols` has 14 entries, and their `name` values are http1 http2 grpc websocket mqtt kafka postgres mysql redis rabbitmq ftp sftp tcp udp |
+| HP-PROTO-02 | P0 | A wrong protocol name is refused and the list is shown | `vegaload run -target http://sample-app:8080/health -protocol bogus -vus 1 -duration 1s -yes -no-open` | Exit 2. Output contains `unknown -protocol "bogus"` and `Supported protocols:` and all 14 names. No JSON summary is expected |
+
 ### HTTP and load shapes
 
 Target is `GET ${SAMPLE_HTTP}/health` unless the row says otherwise. Protocol `http1`.
@@ -175,9 +184,9 @@ The echo program is part of `targets/`. Its reply is fixed, so `expect` can matc
 
 ### Databases and brokers
 
-Each case uses the lab user. The password comes from the environment through `-opt password_env=NAME`. These cases are protocol-direct, so they do not pass `-secret-env`. The validator greps the output for the password.
+Each case uses the lab user. PostgreSQL, MySQL, RabbitMQ, FTP and SFTP take the password from the environment through `-opt password_env=NAME`. These cases are protocol-direct, so they do not pass `-secret-env`. The validator greps the output for the password.
 
-Reads are the default. A case that writes passes `-opt allow_writes=true` and uses a name that starts with `vegaload_lab_`, then deletes that name before it finishes. PostgreSQL and MySQL happy paths are a single `SELECT 1`. Redis is `PING`. RabbitMQ is a roundtrip on `amq.topic` with routing key `vegaload.lab`, which needs no queue left behind.
+Reads are the default. A case that writes passes `-opt allow_writes=true` and uses a name that starts with `vegaload_lab_`. Each call deletes its own file. A call cut off by the end of the run can leave one. PostgreSQL and MySQL happy paths are a single `SELECT 1`. Redis is `PING`. RabbitMQ is a roundtrip on `amq.topic` with routing key `vegaload.lab`, which needs no queue left behind.
 
 | ID | P | Protocol | Command shape | Pass |
 |---|---|---|---|---|
@@ -185,6 +194,15 @@ Reads are the default. A case that writes passes `-opt allow_writes=true` and us
 | HP-MY-01 | P0 | mysql | `-target mysql://mysql:3306/vegaload -body 'select 1' -opt username=... -opt password_env=MYSQL_PASSWORD` | Same |
 | HP-REDIS-01 | P0 | redis | `-target redis://redis:6379 -body PING` | Section 1. The JSON summary does not include the reply text, so the case does not look for `PONG` |
 | HP-RMQ-01 | P0 | rabbitmq | `-target amqp://rabbitmq:5672 -opt mode=roundtrip -opt exchange=amq.topic -opt routing_key=vegaload.lab -opt username=... -body hello -opt password_env=RABBITMQ_PASSWORD` | Section 1. `guest` cannot log in from a remote host, so the case sets `username` |
+
+### FTP and SFTP
+
+Plain FTP only. The user is chrooted, so the path starts at `/`. SFTP is not chrooted, so the path is relative to the home directory. The host key is `${SFTP_HOST_KEY}`.
+
+| ID | P | Protocol | Command shape | Pass |
+|---|---|---|---|---|
+| HP-FTP-01 | P0 | ftp | `-target ftp://ftp:21 -opt username=${FTP_USER} -opt password_env=FTP_PASSWORD -opt mode=roundtrip -opt allow_writes=true -opt path=/vegaload_lab_rt-{id}.bin -opt size=4096 -vus 5 -duration 10s` | Section 1. `protocols` has ftp. `measures` has `upload_time`, `download_time`, `delete_time`. The password is absent from the output |
+| HP-SFTP-01 | P0 | sftp | `-target sftp://sftp:22 -opt username=${SFTP_USER} -opt password_env=SFTP_PASSWORD -opt host_key=${SFTP_HOST_KEY} -opt mode=roundtrip -opt allow_writes=true -opt path=vegaload_lab_rt-{id}.bin -opt size=4096 -vus 5 -duration 10s` | Same, with sftp |
 
 P1 adds one scenario file per protocol, matching the examples already in the product repo (`postgres-orders`, `mysql-orders`, `redis-cache`, `rabbitmq-orders`, and `kafka-orders.vl.js`). JavaScript and Python are both copied where the product repo has both. `kafka-orders` is JavaScript only. Those scenarios are copied into `scenarios/` and pointed at the lab addresses. They keep the same checks.
 
@@ -197,6 +215,9 @@ P1 adds one scenario file per protocol, matching the examples already in the pro
 | HP-SCN-03 | P0 | A named step shows up in the summary | `step("health", ...)` inside HP-SCN-01 | JSON `steps` contains `health` |
 | HP-DATA-01 | P0 | A row from a CSV and a secret from the environment | `-data data/users.csv -secret-env LAB_TOKEN` and a scenario that reads `data.users.next()` and `env.LAB_TOKEN`, then sends GET | Section 1, `LAB_TOKEN`'s value is absent from the output. The scenario does not POST `/widgets`: that endpoint fails about 3% of the time on purpose |
 | HP-VAL-01 | P0 | One user, once, before a real run | `vegaload validate scenarios/health.vl.js` | Exit 0 |
+| HP-DATA-02 | P0 | A data file fills one query parameter per call | `-target postgres://postgres:5432/vegaload -protocol postgres -data data/ids.csv -opt username=${PG_USER} -opt password_env=PGPASSWORD -body 'select $1::int as id' -opt 'args=[{data.ids.id:int}]' -vus 5 -duration 10s` | Section 1. `data_files` has `ids.csv` with 5 rows. The password is absent from the output |
+
+`data/ids.csv` has five rows, `id` 1 through 5. `select $1::int` needs no table. `-secret-env` stays for scenario files. This case passes the password with `-opt password_env=PGPASSWORD`.
 
 `scenarios/health.vl.js` calls `GET ${SAMPLE_HTTP}/health` and checks status 200. The Python file does the same. Both files are the ones the docs will show.
 
@@ -210,6 +231,9 @@ These use the JSON from HP-HTTP-01, or a fresh run of that same command.
 | HP-CMP-01 | P0 | A second run compared with a baseline | Save HP-HTTP-01's JSON as the baseline, run the same command again with `-baseline` and `-max-regression 50` | Exit 0 |
 | HP-DIAG-01 | P0 | A plain explanation of a healthy report | `vegaload diagnose out/HP-HTTP-01.json` | Exit 0, and the text contains `no failed requests`. A healthy report still prints `failure rate:`, so the case does not search for the word `failure` |
 | HP-JSON-01 | P0 | A machine-readable summary on stdout | `-output json` on a 10s health run | Exit 0, stdout is one JSON object with `total` and `failed` |
+| HP-THR-02 | P0 | A threshold on one protocol | HP-HTTP-01 plus `-threshold 'p95{protocol="http1"} < 5s'` | Section 1. `thresholds` has that one entry with `passed` true. `thresholds_passed` is true |
+| HP-RES-01 | P1 | The report has a section per protocol | No new run. Read `out/HP-HTTP-01.json` | `protocols` has an http1 entry with `total` above 0 |
+| HP-CMP-02 | P1 | compare shows each protocol | Run the HP-HTTP-01 command again into `out/HP-CMP-02-run.json`, then `compare -p95-ratio 2 -error-rate-delta 0.01 out/HP-HTTP-01.json out/HP-CMP-02-run.json` | Exit 0. Output contains a line `protocols` and a line that starts with `http1` |
 
 The baseline allowance is 50 percent because two short runs on a shared cluster are not identical. The case checks that compare accepts a healthy pair. Tightening the number is a later tuning, after a week of runs.
 
@@ -230,6 +254,15 @@ The baseline allowance is 50 percent because two short runs on a shared cluster 
 
 A user-facing command, flag, protocol, or scenario global gets a case in section 4 in the same pull request as the feature. The row names the README heading it supports. A feature without a row is not covered by this suite.
 
+| Feature | Case id | README heading | Covered |
+|---|---|---|---|
+| FTP and FTPS | HP-FTP-01 | Test an FTP server | yes |
+| SFTP | HP-SFTP-01 | Test an SFTP server | yes |
+| vegaload protocols | HP-PROTO-01, HP-PROTO-02 | Supported protocols | yes |
+| Per-protocol results | HP-RES-01, HP-CMP-02 | Gate a run on pass/fail thresholds | yes |
+| Protocol thresholds | HP-THR-02 | Gate a run on pass/fail thresholds | yes |
+| -data with -protocol | HP-DATA-02 | Data files with -protocol | yes |
+
 ## 6. Release gate
 
 The release tag is cut when:
@@ -240,7 +273,7 @@ The release tag is cut when:
 4. `docs/examples.md` matches the case files.
 5. The release notes list any P1 case that was not run.
 
-P0 is 34 cases: CLI 2, HTTP and shapes 6, WebSocket 1, gRPC 1, TCP 1, UDP 1, MQTT 2, Kafka 2, PostgreSQL 1, MySQL 1, Redis 1, RabbitMQ 1, scenarios and data 5, reports 4, import and OpenAPI 2, doctor 1, MCP eval 1, Helm 1.
+P0 is 40 cases: CLI 2, protocol list 2, HTTP and shapes 6, WebSocket 1, gRPC 1, TCP 1, UDP 1, MQTT 2, Kafka 2, PostgreSQL 1, MySQL 1, Redis 1, RabbitMQ 1, FTP 1, SFTP 1, scenarios and data 6, reports 5, import and OpenAPI 2, doctor 1, MCP eval 1, Helm 1.
 
 ## 7. Scheduled runs
 
@@ -257,10 +290,12 @@ cases/<id>.yaml            the command and the pass rules
 scenarios/                 health.vl.js, health.py, and the protocol examples
 recordings/widgets.har     the HAR import input
 data/users.csv             the data-file input
+data/ids.csv               five ids for a protocol-direct query
 targets/                   Deployments and Services for the lab
 pipelines/                 Harness pipeline YAML
 scripts/run-case.sh        substitute targets.env, run vegaload, record the exit code
 scripts/validate-report.sh check section 1 against out/<id>.json
+scripts/validate-output.sh check a command that has no run summary
 ```
 
 `scripts/run-case.sh` and `scripts/validate-report.sh` are the only runners. The pipeline calls them. A person can call them the same way on a laptop pointed at a port-forward, which is how a case is debugged when the pipeline goes red.
@@ -273,4 +308,6 @@ scripts/validate-report.sh --id HP-DIAG-01 --diagnose out/HP-DIAG-01.txt --exit 
 scripts/validate-report.sh --id HP-PG-01 --json out/HP-PG-01.json --exit 0 --secret "$PGPASSWORD"
 ```
 
-`--exit 0` is required and is not a pass by itself. The JSON summary must have `total` at least `--total-min` (default 1), `failed` 0, and `error_rate` 0. There is no `check_rate` field. When `checks` is present, the script adds `passes` and `fails` and requires that ratio to be 1. `--require-checks` fails a summary that has no checks. `--secret` is grepped as a fixed string in the JSON summary, the HTML report, and `--log` when that log is passed. The HTML report must exist unless `--no-report` is set. `--diagnose` requires the text `no failed requests`. A healthy diagnosis still prints `failure rate:`, and the script does not search for the word `failure`.
+`--exit 0` is required and is not a pass by itself. The JSON summary must have `total` at least `--total-min` (default 1), `failed` 0, and `error_rate` 0. There is no `check_rate` field. When `checks` is present, the script adds `passes` and `fails` and requires that ratio to be 1. `--require-checks` fails a summary that has no checks. `--require-protocol NAME` requires that protocol with `total` above 0. `--require-measure NAME` requires a measure with `count` above 0. `--require-data-file NAME:ROWS` requires that data file and row count. `--secret` is grepped as a fixed string in the JSON summary, the HTML report, and `--log` when that log is passed. The HTML report must exist unless `--no-report` is set. `--diagnose` requires the text `no failed requests`. A healthy diagnosis still prints `failure rate:`, and the script does not search for the word `failure`.
+
+`scripts/validate-output.sh` checks a command that does not write a run summary. `--exit` is the command's exit code and must equal `--want-exit`. `--contains` is a fixed string in the stdout file. `--protocols-json` requires `schema_version` 1 and the 14 protocol names in order.

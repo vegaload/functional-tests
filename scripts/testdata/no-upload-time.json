@@ -1,0 +1,13 @@
+{
+  "total": 10,
+  "failed": 0,
+  "error_rate": 0,
+  "protocols": [
+    {
+      "name": "ftp",
+      "total": 10,
+      "failed": 0,
+      "measures": [{"name": "download_time", "count": 10}]
+    }
+  ]
+}
