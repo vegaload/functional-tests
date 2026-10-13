@@ -86,9 +86,26 @@ expect_ok no-checks-skipped \
 expect_bad require-checks "has no checks" \
 	--id HP-SCN-01 --json /tmp/vl-validate-nochecks.json --exit 0 --no-report --require-checks
 
-# A failed threshold is a non-zero exit. The summary has no threshold fields.
+# A failed threshold still makes the run exit non-zero. --exit catches that.
 expect_bad threshold "exit code is 3" \
 	--id HP-THR-01 --json scripts/testdata/healthy.json --exit 3 --no-report
+
+thr='p95{protocol="http1"} < 5s'
+expect_ok require-threshold \
+	--id HP-THR-02 --json scripts/testdata/threshold-ok.json --exit 0 --no-report \
+	--require-threshold "$thr"
+
+expect_bad require-threshold-missing "thresholds has no $thr" \
+	--id HP-THR-02 --json scripts/testdata/threshold-other.json --exit 0 --no-report \
+	--require-threshold "$thr"
+
+expect_ok thresholds-passed \
+	--id HP-THR-02 --json scripts/testdata/threshold-ok.json --exit 0 --no-report \
+	--require-thresholds-passed
+
+expect_bad thresholds-passed-false "thresholds_passed is false" \
+	--id HP-THR-02 --json scripts/testdata/threshold-flag-false.json --exit 0 --no-report \
+	--require-thresholds-passed
 
 expect_bad html "HTML report is missing" \
 	--id HP-HTTP-01 --json scripts/testdata/healthy.json --exit 0

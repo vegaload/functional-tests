@@ -1,0 +1,16 @@
+{
+  "total": 10,
+  "failed": 0,
+  "error_rate": 0,
+  "thresholds": [
+    {
+      "name": "p95 < 1s",
+      "metric": "p95",
+      "operator": "<",
+      "value": "1s",
+      "observed": "2.72ms",
+      "passed": true
+    }
+  ],
+  "thresholds_passed": true
+}

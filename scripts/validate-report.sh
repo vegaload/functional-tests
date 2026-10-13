@@ -17,13 +17,15 @@
 # --no-report is set. The runner must pass -report out/<id>.html.
 # VegaLoad's default name is vegaload-report-<timestamp>.html.
 #
-# The JSON summary has no thresholds or thresholds_passed field. A failed
-# threshold makes vegaload exit non-zero, and --exit 0 is required, so
-# that failure is caught by the exit code.
+# thresholds is a list of entries with name and passed.
+# --require-threshold NAME requires that exact name and passed true.
+# --require-thresholds-passed requires thresholds_passed true.
+# A threshold that fails the run also makes vegaload exit non-zero, and
+# --exit 0 catches that.
 set -eu
 
 usage() {
-	echo "Usage: validate-report.sh --id ID (--json FILE | --diagnose FILE) --exit N [--html FILE] [--log FILE] [--secret VALUE] [--no-report] [--total-min N] [--require-checks] [--require-protocol NAME] [--require-measure NAME] [--require-data-file NAME:ROWS]" >&2
+	echo "Usage: validate-report.sh --id ID (--json FILE | --diagnose FILE) --exit N [--html FILE] [--log FILE] [--secret VALUE] [--no-report] [--total-min N] [--require-checks] [--require-protocol NAME] [--require-measure NAME] [--require-data-file NAME:ROWS] [--require-threshold NAME] [--require-thresholds-passed]" >&2
 	exit 2
 }
 
@@ -41,7 +43,9 @@ outfiles=$(mktemp)
 protocols=$(mktemp)
 measures=$(mktemp)
 data_files=$(mktemp)
-trap 'rm -f "$secrets" "$outfiles" "$protocols" "$measures" "$data_files"' EXIT INT TERM
+thresholds=$(mktemp)
+thresholds_passed=0
+trap 'rm -f "$secrets" "$outfiles" "$protocols" "$measures" "$data_files" "$thresholds"' EXIT INT TERM
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -75,6 +79,11 @@ while [ $# -gt 0 ]; do
 	--require-data-file)
 		printf '%s\n' "${2:?}" >> "$data_files"
 		shift 2 ;;
+	--require-threshold)
+		printf '%s\n' "${2:?}" >> "$thresholds"
+		shift 2 ;;
+	--require-thresholds-passed)
+		thresholds_passed=1; shift ;;
 	-h|--help)
 		usage ;;
 	*)
@@ -111,10 +120,11 @@ if [ -n "$json" ]; then
 	if [ ! -f "$json" ]; then
 		say "JSON summary is missing ($json)"
 	else
-		python3 - "$json" "$total_min" "$require_checks" "$id" "$protocols" "$measures" "$data_files" <<'PY' || fail=1
+		python3 - "$json" "$total_min" "$require_checks" "$id" "$protocols" "$measures" "$data_files" "$thresholds" "$thresholds_passed" <<'PY' || fail=1
 import json, sys
 path, total_min, require, ident = sys.argv[1], int(sys.argv[2]), sys.argv[3] == "1", sys.argv[4]
 protocols_path, measures_path, data_files_path = sys.argv[5], sys.argv[6], sys.argv[7]
+thresholds_path, require_passed = sys.argv[8], sys.argv[9] == "1"
 errors = []
 try:
     with open(path, encoding="utf-8") as fh:
@@ -178,6 +188,7 @@ def read_lines(path):
 want_protocols = read_lines(protocols_path)
 want_measures = read_lines(measures_path)
 want_files = read_lines(data_files_path)
+want_thresholds = read_lines(thresholds_path)
 
 def protocol_entries():
     value = data.get("protocols")
@@ -239,6 +250,29 @@ for spec in want_files:
     got = match.get("rows")
     if not as_int(got) or got != want_rows:
         errors.append("%s: %s has %s rows, want %s" % (ident, name, got, want_rows))
+
+if want_thresholds:
+    entries = data.get("thresholds")
+    if not isinstance(entries, list):
+        errors.append("%s: JSON summary has no thresholds" % ident)
+        entries = []
+    by_threshold = {}
+    for item in entries:
+        if isinstance(item, dict) and isinstance(item.get("name"), str):
+            by_threshold[item["name"]] = item
+    for name in want_thresholds:
+        item = by_threshold.get(name)
+        if item is None:
+            errors.append("%s: thresholds has no %s" % (ident, name))
+            continue
+        if item.get("passed") is not True:
+            errors.append("%s: threshold %s passed is not true" % (ident, name))
+
+if require_passed and data.get("thresholds_passed") is not True:
+    if "thresholds_passed" not in data:
+        errors.append("%s: JSON summary has no thresholds_passed" % ident)
+    else:
+        errors.append("%s: thresholds_passed is %s" % (ident, json.dumps(data.get("thresholds_passed"))))
 
 for line in errors:
     print(line)

@@ -1,0 +1,17 @@
+{
+  "total": 10,
+  "failed": 0,
+  "error_rate": 0,
+  "thresholds": [
+    {
+      "name": "p95{protocol=\"http1\"} < 5s",
+      "metric": "p95",
+      "protocol": "http1",
+      "operator": "<",
+      "value": "5s",
+      "observed": "2.72ms",
+      "passed": true
+    }
+  ],
+  "thresholds_passed": false
+}
