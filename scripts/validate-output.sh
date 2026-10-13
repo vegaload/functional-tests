@@ -1,7 +1,8 @@
 #!/bin/sh
 # Check a command that does not write a run summary.
 #
-# --exit is the command's exit code. Any number is allowed, including 2.
+# --exit is the command's exit code. --want-exit is the code the case
+# expects. They must be the same number.
 # --contains is a fixed string that must appear in --stdout. Repeat it for
 # each string. --protocols-json requires one JSON object with schema_version
 # 1 and the 14 protocol names, in order.
@@ -10,12 +11,13 @@
 set -eu
 
 usage() {
-	echo "Usage: validate-output.sh --id ID --exit N --stdout FILE [--contains TEXT]... [--protocols-json]" >&2
+	echo "Usage: validate-output.sh --id ID --exit N --want-exit N --stdout FILE [--contains TEXT]... [--protocols-json]" >&2
 	exit 2
 }
 
 id=""
 exit_code=""
+want_exit=""
 stdout=""
 protocols_json=0
 contains=$(mktemp)
@@ -27,6 +29,8 @@ while [ $# -gt 0 ]; do
 		id=${2:?}; shift 2 ;;
 	--exit)
 		exit_code=${2:?}; shift 2 ;;
+	--want-exit)
+		want_exit=${2:?}; shift 2 ;;
 	--stdout)
 		stdout=${2:?}; shift 2 ;;
 	--contains)
@@ -42,7 +46,7 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-if [ -z "$id" ] || [ -z "$exit_code" ] || [ -z "$stdout" ]; then
+if [ -z "$id" ] || [ -z "$exit_code" ] || [ -z "$want_exit" ] || [ -z "$stdout" ]; then
 	usage
 fi
 
@@ -52,11 +56,27 @@ say() {
 	fail=1
 }
 
+exit_ok=0
+want_ok=0
 case "$exit_code" in
 ''|*[!0-9]*)
 	say "exit code is not a number"
 	;;
+*)
+	exit_ok=1
+	;;
 esac
+case "$want_exit" in
+''|*[!0-9]*)
+	say "want exit code is not a number"
+	;;
+*)
+	want_ok=1
+	;;
+esac
+if [ "$exit_ok" -eq 1 ] && [ "$want_ok" -eq 1 ] && [ "$exit_code" -ne "$want_exit" ]; then
+	say "exit code is $exit_code, want $want_exit"
+fi
 
 if [ ! -f "$stdout" ]; then
 	say "stdout is missing ($stdout)"

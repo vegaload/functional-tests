@@ -37,21 +37,27 @@ expect_bad() {
 }
 
 expect_ok exit-two \
-	--id HP-PROTO-02 --exit 2 --stdout scripts/testdata/bogus-protocol.txt \
+	--id HP-PROTO-02 --exit 2 --want-exit 2 --stdout scripts/testdata/bogus-protocol.txt \
 	--contains 'unknown -protocol "bogus"' --contains 'Supported protocols:'
 
 expect_bad exit-word "exit code is not a number" \
-	--id HP-PROTO-02 --exit no --stdout scripts/testdata/bogus-protocol.txt
+	--id HP-PROTO-02 --exit no --want-exit 2 --stdout scripts/testdata/bogus-protocol.txt
+
+expect_bad exit-mismatch "exit code is 1, want 2" \
+	--id HP-PROTO-02 --exit 1 --want-exit 2 --stdout scripts/testdata/bogus-protocol.txt
 
 expect_bad missing-text "stdout does not contain Supported protocols:" \
-	--id HP-PROTO-02 --exit 2 --stdout scripts/testdata/protocols.json \
+	--id HP-PROTO-02 --exit 2 --want-exit 2 --stdout scripts/testdata/protocols.json \
 	--contains 'Supported protocols:'
 
 expect_ok protocols-json \
-	--id HP-PROTO-01 --exit 0 --stdout scripts/testdata/protocols.json --protocols-json
+	--id HP-PROTO-01 --exit 0 --want-exit 0 --stdout scripts/testdata/protocols.json --protocols-json
+
+expect_bad proto-exit "exit code is 1, want 0" \
+	--id HP-PROTO-01 --exit 1 --want-exit 0 --stdout scripts/testdata/protocols.json --protocols-json
 
 expect_bad protocols-json-version "schema_version is 2" \
-	--id HP-PROTO-01 --exit 0 --stdout scripts/testdata/protocols-bad.json --protocols-json
+	--id HP-PROTO-01 --exit 0 --want-exit 0 --stdout scripts/testdata/protocols-bad.json --protocols-json
 
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]
