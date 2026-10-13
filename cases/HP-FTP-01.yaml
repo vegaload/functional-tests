@@ -1,0 +1,36 @@
+id: HP-FTP-01
+area: ftp
+priority: P0
+doc: "Upload, download, and delete one file over FTP"
+argv:
+  - run
+  - -target
+  - ftp://ftp:21
+  - -protocol
+  - ftp
+  - -opt
+  - username=${FTP_USER}
+  - -opt
+  - password_env=FTP_PASSWORD
+  - -opt
+  - mode=roundtrip
+  - -opt
+  - allow_writes=true
+  - -opt
+  - path=/vegaload_lab_rt-{id}.bin
+  - -opt
+  - size=4096
+  - -vus
+  - "5"
+  - -duration
+  - 10s
+expect:
+  exit: 0
+  total_min: 1
+  failed: 0
+  protocol: ftp
+  measures:
+    - upload_time
+    - download_time
+    - delete_time
+  secret_env: FTP_PASSWORD

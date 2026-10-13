@@ -1,0 +1,35 @@
+id: HP-PROTO-02
+area: protocols
+priority: P0
+doc: "A wrong protocol name is refused and the list is shown"
+argv:
+  - run
+  - -target
+  - http://sample-app:8080/health
+  - -protocol
+  - bogus
+  - -vus
+  - "1"
+  - -duration
+  - 1s
+  - -yes
+  - -no-open
+expect:
+  exit: 2
+  contains:
+    - unknown -protocol "bogus"
+    - "Supported protocols:"
+    - http1
+    - http2
+    - grpc
+    - websocket
+    - mqtt
+    - kafka
+    - postgres
+    - mysql
+    - redis
+    - rabbitmq
+    - ftp
+    - sftp
+    - tcp
+    - udp

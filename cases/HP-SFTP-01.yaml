@@ -1,0 +1,38 @@
+id: HP-SFTP-01
+area: sftp
+priority: P0
+doc: "Upload, download, and delete one file over SFTP"
+argv:
+  - run
+  - -target
+  - sftp://sftp:22
+  - -protocol
+  - sftp
+  - -opt
+  - username=${SFTP_USER}
+  - -opt
+  - password_env=SFTP_PASSWORD
+  - -opt
+  - host_key=${SFTP_HOST_KEY}
+  - -opt
+  - mode=roundtrip
+  - -opt
+  - allow_writes=true
+  - -opt
+  - path=vegaload_lab_rt-{id}.bin
+  - -opt
+  - size=4096
+  - -vus
+  - "5"
+  - -duration
+  - 10s
+expect:
+  exit: 0
+  total_min: 1
+  failed: 0
+  protocol: sftp
+  measures:
+    - upload_time
+    - download_time
+    - delete_time
+  secret_env: SFTP_PASSWORD

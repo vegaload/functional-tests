@@ -1,0 +1,30 @@
+id: HP-DATA-02
+area: data
+priority: P0
+doc: "A data file fills one query parameter per call"
+argv:
+  - run
+  - -target
+  - postgres://postgres:5432/vegaload
+  - -protocol
+  - postgres
+  - -data
+  - data/ids.csv
+  - -opt
+  - username=${PG_USER}
+  - -opt
+  - password_env=PGPASSWORD
+  - -body
+  - select $1::int as id
+  - -opt
+  - 'args=[{data.ids.id:int}]'
+  - -vus
+  - "5"
+  - -duration
+  - 10s
+expect:
+  exit: 0
+  total_min: 1
+  failed: 0
+  data_file: ids.csv:5
+  secret_env: PGPASSWORD

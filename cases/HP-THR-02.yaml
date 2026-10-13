@@ -1,0 +1,22 @@
+id: HP-THR-02
+area: reports
+priority: P0
+doc: "A threshold on one protocol"
+argv:
+  - run
+  - -target
+  - http://sample-app:8080/health
+  - -protocol
+  - http1
+  - -vus
+  - "5"
+  - -duration
+  - 10s
+  - -threshold
+  - 'p95{protocol="http1"} < 5s'
+expect:
+  exit: 0
+  total_min: 1
+  failed: 0
+  threshold: 'p95{protocol="http1"} < 5s'
+  thresholds_passed: true

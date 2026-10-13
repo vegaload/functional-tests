@@ -1,0 +1,29 @@
+id: HP-CMP-02
+area: reports
+priority: P1
+doc: "compare shows each protocol"
+setup:
+  - run
+  - -target
+  - http://sample-app:8080/health
+  - -protocol
+  - http1
+  - -vus
+  - "5"
+  - -duration
+  - 10s
+  - -out
+  - out/HP-CMP-02-run.json
+argv:
+  - compare
+  - -p95-ratio
+  - "2"
+  - -error-rate-delta
+  - "0.01"
+  - out/HP-HTTP-01.json
+  - out/HP-CMP-02-run.json
+expect:
+  exit: 0
+  contains:
+    - protocols
+    - http1

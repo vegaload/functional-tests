@@ -1,0 +1,7 @@
+id: HP-RES-01
+area: reports
+priority: P1
+doc: "The report has a section per protocol. No new run. Read out/HP-HTTP-01.json."
+read: out/HP-HTTP-01.json
+expect:
+  protocol: http1
