@@ -1,0 +1,8 @@
+{
+  "total": 10,
+  "failed": 0,
+  "error_rate": 0,
+  "protocols": [
+    {"name": "http1", "total": 10, "failed": 0, "measures": []}
+  ]
+}

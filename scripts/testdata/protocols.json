@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "protocols": [
+    {"name": "http1"},
+    {"name": "http2"},
+    {"name": "grpc"},
+    {"name": "websocket"},
+    {"name": "mqtt"},
+    {"name": "kafka"},
+    {"name": "postgres"},
+    {"name": "mysql"},
+    {"name": "redis"},
+    {"name": "rabbitmq"},
+    {"name": "ftp"},
+    {"name": "sftp"},
+    {"name": "tcp"},
+    {"name": "udp"}
+  ]
+}

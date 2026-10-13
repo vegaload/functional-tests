@@ -1,0 +1,33 @@
+{
+  "total": 1550,
+  "failed": 0,
+  "error_rate": 0,
+  "protocols": [
+    {
+      "name": "ftp",
+      "total": 1550,
+      "failed": 0,
+      "error_rate": 0,
+      "latency": {"p95_ns": 4907000},
+      "operations": [{"name": "roundtrip", "total": 1550}],
+      "measures": [
+        {"name": "upload_time", "count": 1550, "latency": {"p95_ns": 1000000}},
+        {"name": "download_time", "count": 1550},
+        {"name": "delete_time", "count": 1550}
+      ]
+    }
+  ],
+  "data_files": [{"name": "ids.csv", "rows": 5}],
+  "thresholds": [
+    {
+      "name": "p95{protocol=\"http1\"} < 5s",
+      "metric": "p95",
+      "protocol": "http1",
+      "operator": "<",
+      "value": "5s",
+      "observed": "7.89ms",
+      "passed": true
+    }
+  ],
+  "thresholds_passed": true
+}

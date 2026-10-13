@@ -1,0 +1,4 @@
+vegaload run: unknown -protocol "bogus"
+Supported protocols:
+http1, http2, grpc, websocket, mqtt, kafka, postgres, mysql, redis, rabbitmq, ftp, sftp,
+tcp, udp
