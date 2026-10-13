@@ -351,6 +351,7 @@ def write_plan(case_path, env_path, out_dir, work):
         "require_checks": expect.get("require_checks") is True,
         "data_file": expect.get("data_file") if isinstance(expect.get("data_file"), str) else "",
         "secret_env": secret_env if isinstance(secret_env, str) else "",
+        "thresholds_passed": expect.get("thresholds_passed") is True,
     }
     with open(work + "/meta.json", "w", encoding="utf-8") as fh:
         json.dump(meta, fh)
@@ -368,6 +369,9 @@ def write_plan(case_path, env_path, out_dir, work):
             fh.write(name + "\n")
     with open(work + "/measures", "w", encoding="utf-8") as fh:
         for name in _as_list(expect.get("measures")):
+            fh.write(name + "\n")
+    with open(work + "/thresholds", "w", encoding="utf-8") as fh:
+        for name in _as_list(expect.get("threshold")):
             fh.write(name + "\n")
     with open(work + "/contains", "w", encoding="utf-8") as fh:
         for text in _as_list(expect.get("contains")):
