@@ -65,6 +65,7 @@ total_min=$(field total_min)
 require_checks=$(field require_checks)
 data_file=$(field data_file)
 secret_env=$(field secret_env)
+thresholds_passed=$(field thresholds_passed)
 
 mkdir -p "$out_dir"
 # shellcheck disable=SC1091
@@ -151,6 +152,13 @@ else
 	done < "$work/measures"
 	if [ -n "$data_file" ]; then
 		set -- "$@" --require-data-file "$data_file"
+	fi
+	while IFS= read -r name; do
+		[ -n "$name" ] || continue
+		set -- "$@" --require-threshold "$name"
+	done < "$work/thresholds"
+	if [ "$thresholds_passed" = "True" ]; then
+		set -- "$@" --require-thresholds-passed
 	fi
 	if [ -n "$secret_env" ]; then
 		eval "secret_value=\${$secret_env}"

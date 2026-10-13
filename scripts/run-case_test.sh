@@ -127,6 +127,31 @@ fi
 expect_line ftp 0 "PASS HP-FTP-01" \
 	"$runner" --case cases/HP-FTP-01.yaml --env "$tmp/env" --out "$tmp/out-ftp" --vegaload "$fake"
 
+cat > "$tmp/HP-THR.yaml" <<'EOF'
+id: HP-THR-CHK
+area: reports
+priority: P0
+doc: "a threshold is in the summary"
+argv:
+  - run
+  - -target
+  - http://127.0.0.1/health
+  - -protocol
+  - http1
+expect:
+  exit: 0
+  threshold: 'p95{protocol="http1"} < 5s'
+  thresholds_passed: true
+EOF
+
+expect_line threshold-pass 0 "PASS HP-THR-CHK" \
+	env VEGALOAD_FAKE_SUMMARY="$PWD/scripts/testdata/threshold-ok.json" \
+	"$runner" --case "$tmp/HP-THR.yaml" --env "$tmp/env" --out "$tmp/out-thr" --vegaload "$fake"
+
+expect_line threshold-miss 1 'FAIL HP-THR-CHK: thresholds has no p95{protocol="http1"} < 5s' \
+	env VEGALOAD_FAKE_SUMMARY="$PWD/scripts/testdata/threshold-other.json" \
+	"$runner" --case "$tmp/HP-THR.yaml" --env "$tmp/env" --out "$tmp/out-thr-miss" --vegaload "$fake"
+
 python3 - <<'PY'
 import glob, sys
 sys.path.insert(0, "scripts")

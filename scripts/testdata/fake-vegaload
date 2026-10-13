@@ -8,6 +8,7 @@ set -eu
 out=""
 report=""
 protocol=""
+threshold=""
 prev=""
 bogus=0
 for arg in "$@"; do
@@ -15,6 +16,7 @@ for arg in "$@"; do
 	-out) out=$arg ;;
 	-report) report=$arg ;;
 	-protocol) protocol=$arg ;;
+	-threshold) threshold=$arg ;;
 	esac
 	if [ "$arg" = "bogus" ]; then
 		bogus=1
@@ -48,7 +50,12 @@ if [ -n "$out" ]; then
 		cp "$VEGALOAD_FAKE_SUMMARY" "$out"
 	else
 		[ -n "$protocol" ] || protocol=http1
-		printf '%s\n' "{\"total\":10,\"failed\":0,\"error_rate\":0,\"protocols\":[{\"name\":\"$protocol\",\"total\":10,\"failed\":0,\"measures\":[{\"name\":\"upload_time\",\"count\":10},{\"name\":\"download_time\",\"count\":10},{\"name\":\"delete_time\",\"count\":10}]}],\"data_files\":[{\"name\":\"ids.csv\",\"rows\":5}]}" > "$out"
+		extra=""
+		if [ -n "$threshold" ]; then
+			escaped=$(printf '%s' "$threshold" | sed 's/\\/\\\\/g; s/"/\\"/g')
+			extra=$(printf ',"thresholds":[{"name":"%s","metric":"p95","protocol":"http1","operator":"<","value":"5s","observed":"2.72ms","passed":true}],"thresholds_passed":true' "$escaped")
+		fi
+		printf '%s\n' "{\"total\":10,\"failed\":0,\"error_rate\":0,\"protocols\":[{\"name\":\"$protocol\",\"total\":10,\"failed\":0,\"measures\":[{\"name\":\"upload_time\",\"count\":10},{\"name\":\"download_time\",\"count\":10},{\"name\":\"delete_time\",\"count\":10}]}],\"data_files\":[{\"name\":\"ids.csv\",\"rows\":5}]${extra}}" > "$out"
 	fi
 fi
 
