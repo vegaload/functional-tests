@@ -111,6 +111,19 @@ expect_line wrong-exit 1 "FAIL HP-OK: exit code is 1" \
 expect_line proto-list 0 "PASS HP-PROTO-01" \
 	"$runner" --case cases/HP-PROTO-01.yaml --env "$tmp/env" --out "$tmp/out-proto" --vegaload "$fake"
 
+expect_line proto-stderr 0 "PASS HP-PROTO-02" \
+	"$runner" --case cases/HP-PROTO-02.yaml --env "$tmp/env" --out "$tmp/out-proto2" --vegaload "$fake"
+
+if [ -s "$tmp/out-proto2/HP-PROTO-02.stdout" ]; then
+	echo "FAIL proto-stderr stdout should be empty"
+	fail=$((fail + 1))
+elif ! grep -F -q 'unknown -protocol "bogus"' "$tmp/out-proto2/HP-PROTO-02.log"; then
+	echo "FAIL proto-stderr log is missing the protocol list"
+	fail=$((fail + 1))
+else
+	pass=$((pass + 1))
+fi
+
 expect_line ftp 0 "PASS HP-FTP-01" \
 	"$runner" --case cases/HP-FTP-01.yaml --env "$tmp/env" --out "$tmp/out-ftp" --vegaload "$fake"
 
