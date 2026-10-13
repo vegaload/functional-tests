@@ -1,0 +1,63 @@
+#!/bin/sh
+# Stand-in for the binary. Prints fixed output and exits with a fixed code.
+# VEGALOAD_FAKE_EXIT overrides the exit code of a normal run.
+# VEGALOAD_FAKE_STDOUT overrides the normal stdout line.
+# VEGALOAD_FAKE_SUMMARY, when set, is copied to -out.
+set -eu
+
+out=""
+report=""
+protocol=""
+prev=""
+bogus=0
+for arg in "$@"; do
+	case "$prev" in
+	-out) out=$arg ;;
+	-report) report=$arg ;;
+	-protocol) protocol=$arg ;;
+	esac
+	if [ "$arg" = "bogus" ]; then
+		bogus=1
+	fi
+	if [ "$arg" = "FAILSETUP" ]; then
+		exit 7
+	fi
+	prev=$arg
+done
+
+here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+
+if [ "${1-}" = "protocols" ]; then
+	cat "$here/protocols.json"
+	exit 0
+fi
+
+if [ "$bogus" -eq 1 ]; then
+	cat "$here/bogus-protocol.txt"
+	exit 2
+fi
+
+if [ -n "${VEGALOAD_FAKE_STDOUT+x}" ]; then
+	printf '%s\n' "$VEGALOAD_FAKE_STDOUT"
+else
+	echo ok
+fi
+
+if [ -n "$out" ]; then
+	if [ -n "${VEGALOAD_FAKE_SUMMARY-}" ]; then
+		cp "$VEGALOAD_FAKE_SUMMARY" "$out"
+	else
+		[ -n "$protocol" ] || protocol=http1
+		printf '%s\n' "{\"total\":10,\"failed\":0,\"error_rate\":0,\"protocols\":[{\"name\":\"$protocol\",\"total\":10,\"failed\":0,\"measures\":[{\"name\":\"upload_time\",\"count\":10},{\"name\":\"download_time\",\"count\":10},{\"name\":\"delete_time\",\"count\":10}]}],\"data_files\":[{\"name\":\"ids.csv\",\"rows\":5}]}" > "$out"
+	fi
+fi
+
+if [ -n "$report" ]; then
+	printf '%s\n' "<html></html>" > "$report"
+fi
+
+if [ -n "${VEGALOAD_FAKE_ORDER-}" ]; then
+	printf '%s\n' "${out:-$1}" >> "$VEGALOAD_FAKE_ORDER"
+fi
+
+exit "${VEGALOAD_FAKE_EXIT-0}"
