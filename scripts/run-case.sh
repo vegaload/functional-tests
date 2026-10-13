@@ -112,7 +112,8 @@ if [ "$mode" = "output" ]; then
 		--id "$id" \
 		--exit "$code" \
 		--want-exit "$want_exit" \
-		--stdout "$stdout_path"
+		--stdout "$stdout_path" \
+		--log "$log_path"
 	if [ "$protocols_json" = "True" ]; then
 		set -- "$@" --protocols-json
 	fi

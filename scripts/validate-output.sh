@@ -4,14 +4,16 @@
 # --exit is the command's exit code. --want-exit is the code the case
 # expects. They must be the same number.
 # --contains is a fixed string that must appear in --stdout. Repeat it for
-# each string. --protocols-json requires one JSON object with schema_version
-# 1 and the 14 protocol names, in order.
+# each string. When --log is set, --contains searches that file instead.
+# The runner writes stdout and stderr together there.
+# --protocols-json still reads --stdout, which must stay one JSON object
+# with schema_version 1 and the 14 protocol names, in order.
 #
 # A failure is one line that starts with the case id.
 set -eu
 
 usage() {
-	echo "Usage: validate-output.sh --id ID --exit N --want-exit N --stdout FILE [--contains TEXT]... [--protocols-json]" >&2
+	echo "Usage: validate-output.sh --id ID --exit N --want-exit N --stdout FILE [--log FILE] [--contains TEXT]... [--protocols-json]" >&2
 	exit 2
 }
 
@@ -19,6 +21,7 @@ id=""
 exit_code=""
 want_exit=""
 stdout=""
+log=""
 protocols_json=0
 contains=$(mktemp)
 trap 'rm -f "$contains"' EXIT INT TERM
@@ -33,6 +36,8 @@ while [ $# -gt 0 ]; do
 		want_exit=${2:?}; shift 2 ;;
 	--stdout)
 		stdout=${2:?}; shift 2 ;;
+	--log)
+		log=${2:?}; shift 2 ;;
 	--contains)
 		printf '%s\n' "${2:?}" >> "$contains"
 		shift 2 ;;
@@ -80,11 +85,19 @@ fi
 
 if [ ! -f "$stdout" ]; then
 	say "stdout is missing ($stdout)"
+elif [ -n "$log" ] && [ ! -f "$log" ]; then
+	say "log is missing ($log)"
 else
+	search=$stdout
+	where=stdout
+	if [ -n "$log" ]; then
+		search=$log
+		where=log
+	fi
 	while IFS= read -r text; do
 		[ -n "$text" ] || continue
-		if ! grep -F -q -- "$text" "$stdout"; then
-			say "stdout does not contain $text"
+		if ! grep -F -q -- "$text" "$search"; then
+			say "$where does not contain $text"
 		fi
 	done < "$contains"
 	if [ "$protocols_json" -eq 1 ]; then

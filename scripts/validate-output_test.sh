@@ -50,6 +50,24 @@ expect_bad missing-text "stdout does not contain Supported protocols:" \
 	--id HP-PROTO-02 --exit 2 --want-exit 2 --stdout scripts/testdata/protocols.json \
 	--contains 'Supported protocols:'
 
+: > /tmp/vl-empty-stdout.txt
+
+expect_ok log-contains \
+	--id HP-PROTO-02 --exit 2 --want-exit 2 --stdout /tmp/vl-empty-stdout.txt \
+	--log scripts/testdata/bogus-protocol.txt \
+	--contains 'unknown -protocol "bogus"' --contains 'Supported protocols:'
+
+expect_bad log-missing "log does not contain Supported protocols:" \
+	--id HP-PROTO-02 --exit 2 --want-exit 2 --stdout /tmp/vl-empty-stdout.txt \
+	--log scripts/testdata/protocols.json \
+	--contains 'Supported protocols:'
+
+expect_ok protocols-json-ignores-log \
+	--id HP-PROTO-01 --exit 0 --want-exit 0 \
+	--stdout scripts/testdata/protocols.json \
+	--log scripts/testdata/bogus-protocol.txt \
+	--protocols-json
+
 expect_ok protocols-json \
 	--id HP-PROTO-01 --exit 0 --want-exit 0 --stdout scripts/testdata/protocols.json --protocols-json
 

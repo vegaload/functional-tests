@@ -33,7 +33,7 @@ if [ "${1-}" = "protocols" ]; then
 fi
 
 if [ "$bogus" -eq 1 ]; then
-	cat "$here/bogus-protocol.txt"
+	cat "$here/bogus-protocol.txt" >&2
 	exit 2
 fi
 
